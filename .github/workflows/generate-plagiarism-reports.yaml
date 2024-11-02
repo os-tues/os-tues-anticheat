@@ -1,0 +1,29 @@
+name: Generate Plagiarism Reports
+on:
+  schedule:
+    - cron: 0 0 * * * # Runs daily at midnight UTC
+  workflow_dispatch:
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+jobs:
+  generate-plagiarism-reports:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get All "os-tues" GitHub Classrooms
+        id: get_all_classrooms
+        run: |
+          # Get all classrooms using the GitHub CLI
+          CLASSROOMS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /classrooms)
+
+          # Filter out classrooms without "os-tues" in the name
+          CLASSROOMS=$(echo "$CLASSROOMS" | jq '[.[] | select(.name | test("os-tues"))]')
+          echo $CLASSROOMS
+
+          # Add $CLASSROOMS to workflow environment
+          export CLASSROOMS >> $GITHUB_ENV
