@@ -26,13 +26,14 @@ jobs:
 
           # Add $CLASSROOMS to workflow environment
           echo $CLASSROOMS
-          echo $CLASSROOMS >> $GITHUB_ENV
+          echo CLASSROOMS=$CLASSROOMS >> $GITHUB_ENV
 
       - name: Get assignments for each classrooms
         id: get_assignments
         run: |
           # Get the IDs of all classrooms
           CLASSROOM_IDS=$(echo $CLASSROOMS | jq '.[] | .id')
+          echo $CLASSROOM_IDS
           ASSIGNMENTS=[]
 
           # Get all assignments for each classroom
@@ -47,4 +48,4 @@ jobs:
 
           # Add $CLASSROOMS to workflow environment
           echo $ASSIGNMENTS
-          echo $ASSIGNMENTS >> $GITHUB_ENV
+          echo ASSIGNMENTS=$ASSIGNMENTS >> $GITHUB_ENV
