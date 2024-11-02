@@ -23,7 +23,28 @@ jobs:
 
           # Filter out classrooms without "os-tues" in the name
           CLASSROOMS=$(echo "$CLASSROOMS" | jq '[.[] | select(.name | test("os-tues"))]')
-          echo $CLASSROOMS
 
           # Add $CLASSROOMS to workflow environment
-          export CLASSROOMS >> $GITHUB_ENV
+          echo $CLASSROOMS
+          echo $CLASSROOMS >> $GITHUB_ENV
+
+      - name: Get assignments for each classrooms
+        id: get_assignments
+        run: |
+          # Get the IDs of all classrooms
+          CLASSROOM_IDS=$(echo $CLASSROOMS | jq '.[] | .id')
+          ASSIGNMENTS=[]
+
+          # Get all assignments for each classroom
+          echo "$CLASSROOM_IDS" | while read -r id; do
+            CLASSROOM_ASSIGNMENTS=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              /classrooms/$id/assignments)
+
+            ASSIGNMENTS=$(echo "$ASSIGNMENTS" | jq --argjson new_assignments "$CLASSROOM_ASSIGNMENTS" '. + $new_assignments')
+          done
+
+          # Add $CLASSROOMS to workflow environment
+          echo $ASSIGNMENTS
+          echo $ASSIGNMENTS >> $GITHUB_ENV
