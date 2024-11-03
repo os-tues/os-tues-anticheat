@@ -12,6 +12,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Install classroom extension for GitHub CLI
+        id: install_classroom_extension
+        run: |
+          gh extension install github/gh-classroom
+
       - name: Get All "os-tues" GitHub Classrooms
         id: get_all_classrooms
         run: |
