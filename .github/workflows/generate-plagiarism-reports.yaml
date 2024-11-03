@@ -108,6 +108,7 @@ jobs:
       - name: Get assignment repository names
         id: get_assignment_repository_names
         run: |
+          # Find assignment names (slugs) from the $ASSIGNMENTS list
           ASSIGNMENT_NAMES_TO_BE_RECOMPUTED=$(echo "$ASSIGNMENTS" | jq --argjson ids "$ASSIGNMENT_IDS_TO_BE_RECOMPUTED" '
             [.[] | select(.id as $id | $ids | index($id)) | .slug]
           ')
@@ -115,3 +116,14 @@ jobs:
           # Add $ASSIGNMENT_NAMES_TO_BE_RECOMPUTED to workflow environment
           echo ASSIGNMENT_NAMES_TO_BE_RECOMPUTED=$ASSIGNMENT_NAMES_TO_BE_RECOMPUTED
           echo ASSIGNMENT_NAMES_TO_BE_RECOMPUTED=$ASSIGNMENT_NAMES_TO_BE_RECOMPUTED >> "$GITHUB_ENV"
+
+      - name: Zip assignment repository files
+        id: zip_assignment_repository_files
+        run: |
+          assignment_to_recompute=$(echo "$ASSIGNMENT_NAMES_TO_BE_RECOMPUTED" | jq -r '.[]')
+
+          # Zip all assignment files
+          for assignment_name in $assignment_to_recompute; do
+            # TODO: Adjust file types
+            zip -r $assignment_name.zip . -i $assignment_name-submissions/**/*.c
+          done
