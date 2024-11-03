@@ -49,7 +49,7 @@ jobs:
           echo ASSIGNMENTS=$ASSIGNMENTS
           echo ASSIGNMENTS=$ASSIGNMENTS >> $GITHUB_ENV
 
-      - name: Get a list of assignments, which have new submissions since last check
+      - name: Get a list of assignments, which have new submissions since the last check
         id: get_assignments_with_new_submissions
         run: |
           # Get the IDs of all classrooms
@@ -89,3 +89,24 @@ jobs:
           # Add $ASSIGNMENT_IDS_TO_BE_RECOMPUTED to workflow environment
           echo ASSIGNMENT_IDS_TO_BE_RECOMPUTED=$ASSIGNMENT_IDS_TO_BE_RECOMPUTED
           echo ASSIGNMENT_IDS_TO_BE_RECOMPUTED=$ASSIGNMENT_IDS_TO_BE_RECOMPUTED >> "$GITHUB_ENV"
+
+      - name: Clone all repositories of the assignments with new submissions
+        id: clone_assignment_repositories
+        run: |
+          assignment_to_recompute=$(echo "$ASSIGNMENT_IDS_TO_BE_RECOMPUTED" | jq -r '.[]')
+
+          # Clone all repositories with new submissions
+          for assignment_id in $assignment_to_recompute; do
+            gh classroom clone student-repos -a $assignment_id
+          done
+
+      - name: Get assignment repository names
+        id: get_assignment_repository_names
+        run: |
+          ASSIGNMENT_NAMES_TO_BE_RECOMPUTED=$(echo "$ASSIGNMENTS" | jq --argjson ids "$ASSIGNMENT_IDS_TO_BE_RECOMPUTED" '
+            [.[] | select(.id as $id | $ids | index($id)) | .slug]
+          ')
+
+          # Add $ASSIGNMENT_NAMES_TO_BE_RECOMPUTED to workflow environment
+          echo ASSIGNMENT_NAMES_TO_BE_RECOMPUTED=$ASSIGNMENT_NAMES_TO_BE_RECOMPUTED
+          echo ASSIGNMENT_NAMES_TO_BE_RECOMPUTED=$ASSIGNMENT_NAMES_TO_BE_RECOMPUTED >> "$GITHUB_ENV"
