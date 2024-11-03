@@ -25,27 +25,69 @@ jobs:
           CLASSROOMS=$(echo "$CLASSROOMS" | jq '[.[] | select(.name | test("os-tues"))]')
 
           # Add $CLASSROOMS to workflow environment
-          echo $CLASSROOMS
+          echo CLASSROOMS=$CLASSROOMS
           echo CLASSROOMS=$CLASSROOMS >> $GITHUB_ENV
 
-      - name: Get assignments for each classrooms
+      - name: Get assignments from each classrooms
         id: get_assignments
         run: |
           # Get the IDs of all classrooms
-          CLASSROOM_IDS=$(echo $CLASSROOMS | jq '.[] | .id')
-          echo $CLASSROOM_IDS
+          classroom_ids=$(echo $CLASSROOMS | jq '.[] | .id')
           ASSIGNMENTS=[]
 
           # Get all assignments for each classroom
-          echo "$CLASSROOM_IDS" | while read -r id; do
-            CLASSROOM_ASSIGNMENTS=$(gh api \
+          echo "$classroom_ids" | while read -r assignment_id; do
+            classroom_assignments=$(gh api \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              /classrooms/$id/assignments)
+              /classrooms/$assignment_id/assignments)
 
-            ASSIGNMENTS=$(echo "$ASSIGNMENTS" | jq --argjson new_assignments "$CLASSROOM_ASSIGNMENTS" '. + $new_assignments')
+            echo $classroom_assignments
+
+            ASSIGNMENTS=$(echo "$ASSIGNMENTS" | jq --argjson new_assignments "$classroom_assignments" '. + $new_assignments')
           done
 
           # Add $CLASSROOMS to workflow environment
-          echo $ASSIGNMENTS
+          echo ASSIGNMENTS=$ASSIGNMENTS
           echo ASSIGNMENTS=$ASSIGNMENTS >> $GITHUB_ENV
+
+      - name: Get a list of assignments, which have new submissions since last check
+        id: get_assignments_with_new_submissions
+        run: |
+          # Get the IDs of all classrooms
+          assignment_ids=$(echo $ASSIGNMENTS | jq '.[] | .id')
+          echo $assignment_ids
+
+          ASSIGNMENT_IDS_TO_BE_COMPUTED=[]
+
+          echo "$assignment_ids" | while read -r assignment_id; do
+            # Get all submissions for an assignment
+            assignment_submissions=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              /assignments/$assignment_id/accepted_assignments)
+
+            # Use GitHub CLI to fetch the latest commit hash for each submission repository and store it in a file
+            echo "[commits]" > $assignment_id-latest-commits.toml
+            echo $assignment_submissions | jq -r '.[].repository.full_name' | while read -r repo; do
+              latest_commit=$(gh api \
+                -H "Accept: application/vnd.github+json" \
+                "/repos/$repo/commits" | jq -r '.[0].sha')
+
+              echo "$repo = $latest_commit" >> $assignment_id-latest-commits.toml
+            done
+
+            # Sort the list of commits
+            sort -n $assignment_id-latest-commits.toml --output $assignment_id-latest-commits.toml
+
+            # Check if there are any new commits since the last check
+            diff $assignment_id-latest-commits.toml $assignment_id-computed-commits.toml > /dev/null
+            if [ $? -ne 0 ]; then
+              echo "New submissions detected for assignment $assignment_id."
+              ASSIGNMENT_IDS_TO_BE_RECOMPUTED=$(echo "$ASSIGNMENT_IDS_TO_BE_RECOMPUTED" | jq --argjson id $assignment_id '. + [$id]')
+            fi
+          done
+
+          # Add $ASSIGNMENT_IDS_TO_BE_RECOMPUTED to workflow environment
+          echo ASSIGNMENT_IDS_TO_BE_RECOMPUTED=$ASSIGNMENT_IDS_TO_BE_RECOMPUTED
+          echo ASSIGNMENT_IDS_TO_BE_RECOMPUTED=$ASSIGNMENT_IDS_TO_BE_RECOMPUTED >> $GITHUB_ENV
