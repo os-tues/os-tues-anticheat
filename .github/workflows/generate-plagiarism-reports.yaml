@@ -17,7 +17,7 @@ jobs:
         run: |
           gh extension install github/gh-classroom
 
-      - name: Get All "os-tues" GitHub Classrooms
+      - name: Get all "os-tues" GitHub Classrooms
         id: get_all_classrooms
         run: |
           # Get all classrooms using the GitHub CLI
@@ -127,3 +127,30 @@ jobs:
             # TODO: Adjust file types
             zip -r $assignment_name.zip . -i $assignment_name-submissions/**/*.c
           done
+
+      - name: Request plagiarism reports
+        id: request_plagiarism_reports
+        run: |
+          assignment_to_recompute=$(echo "$ASSIGNMENT_NAMES_TO_BE_RECOMPUTED" | jq -r '.[]')
+          REPORTS="[]"
+
+          for assignment_name in $assignment_to_recompute; do
+            # Request plagiarism report
+            response=$(curl \
+              -F "dataset[name]=$assignment_name" \
+              -F "dataset[zipfile]=@./$assignment_name.zip" \
+              -F "dataset[programming_language]=" \
+              https://dolos.ugent.be/api/reports)
+
+            # Parse response
+            assignment_id=$(echo "$ASSIGNMENTS" | jq --arg name "$assignment_name" -r '.[] | select(.slug == $name) | .id')
+            report_url=$(echo "$response" | jq -r '.html_url')
+            report_date=$(echo "$response" | jq -r '.dataset.created_at')
+
+            # Add the report to list of reports
+            REPORTS=$(echo "$REPORTS" | jq --argjson new_report "{\"assignment_id\": \"$assignment_id\", \"report_url\": \"$report_url\", \"report_date\": \"$report_date\"}" '. + [$new_report]')
+          done
+
+          # Add $REPORTS to workflow environment
+          echo REPORTS=$REPORTS
+          echo REPORTS=$REPORTS >> "$GITHUB_ENV"
